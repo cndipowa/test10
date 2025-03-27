@@ -35,3 +35,40 @@ Important Considerations:
 
 Certificate Secrets:
 The commands above only check the hostnames in the route/ingress definitions. To get a more precise result, you might need to inspect the actual certificate secrets referenced by the routes/ingresses. 
+
+
+Command to Get Routes and Ingresses Using Wildcard Certificates
+Here are commands to find all routes (OpenShift) and ingresses (Kubernetes) that use wildcard certificates:
+
+For OpenShift Routes
+bash
+Copy
+oc get routes --all-namespaces -o json | jq -r '.items[] | select(.spec.tls?.certificate == "*" or .spec.tls?.key == "*") | "Namespace: \(.metadata.namespace) Route: \(.metadata.name)"'
+For Kubernetes Ingresses
+bash
+Copy
+kubectl get ingress --all-namespaces -o json | jq -r '.items[] | select(.spec.tls[]?.secretName | contains("*") or test("wildcard")) | "Namespace: \(.metadata.namespace) Ingress: \(.metadata.name)"'
+Alternative for Ingresses (more thorough)
+bash
+Copy
+kubectl get ingress --all-namespaces -o json | jq -r '.items[] | select(any(.spec.tls[]?.secretName; . and (. | contains("*") or test("wildcard")))) | "Namespace: \(.metadata.namespace) Ingress: \(.metadata.name) Secret: \(.spec.tls[]?.secretName)"'
+Notes:
+These commands:
+
+Search across all namespaces
+
+Look for routes/ingresses with TLS configuration
+
+Filter for those using wildcard indicators ("*" or "wildcard" in secret names)
+
+Output namespace and resource name
+
+Wildcard certificates might be indicated by:
+
+Literal "*" in certificate fields
+
+Secret names containing "wildcard" or "*"
+
+Other patterns your organization uses
+
+You may need to adjust the patterns based on how wildcard certificates are named in your cluster.

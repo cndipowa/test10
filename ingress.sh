@@ -14,3 +14,14 @@ oc get ingress --all-namespaces -o json | jq '
       hosts: [.spec.tls[].hosts[]?],
       tlsSecrets: [.spec.tls[].secretName]
     }'
+
+oc get routes --all-namespaces -o json | jq '
+  .items[]
+  | select(.spec.tls.termination == "edge" or .spec.tls.termination == "reencrypt")
+  | {
+      namespace: .metadata.namespace,
+      name: .metadata.name,
+      host: .spec.host,
+      termination: .spec.tls.termination,
+      insecurePolicy: .spec.tls.insecureEdgeTerminationPolicy
+    }'

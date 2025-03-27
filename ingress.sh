@@ -4,3 +4,13 @@ total=$((routecount + ingresscount))
 echo "Routes using wildcard certificates: $routecount"
 echo "Ingresses using wildcard certificates: $ingresscount"
 echo "Total routes and ingresses using wildcard certificates: $total"
+
+oc get ingress --all-namespaces -o json | jq '
+  .items[]
+  | select(.spec.tls != null)
+  | {
+      namespace: .metadata.namespace,
+      name: .metadata.name,
+      hosts: [.spec.tls[].hosts[]?],
+      tlsSecrets: [.spec.tls[].secretName]
+    }'

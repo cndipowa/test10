@@ -75,3 +75,12 @@ jq '.items[] | select(.spec.wildcardPolicy == "Subdomain")'
 - Replace `*.<domain>` with specific hosts.
 - Enforce admission policies using OPA/Gatekeeper.
 - Monitor wildcard usage regularly.
+
+
+
+Security & Compliance
+Attack Surface Reduction: Wildcard routes expose multiple subdomains under a single DNS entry, which could be abused if not properly secured.
+
+TLS/SSL Considerations: Wildcard certificates (often used with wildcard routes) have broader coverage, meaning a compromised certificate affects all subdomains.
+
+Compliance Audits: Some security standards (e.g., PCI-DSS, FedRAMP) require strict control over publicly exposed endpoints.

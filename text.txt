@@ -1,1 +1,43 @@
-text file
+
+# Get all routes as JSON
+$routesJson = oc get routes --all-namespaces -o json | ConvertFrom-Json
+
+$wildcardRoutes = @()
+
+foreach ($route in $routesJson.items) {
+    $ns = $route.metadata.namespace
+    $name = $route.metadata.name
+    $host = $route.spec.host
+    $tls = $route.spec.tls
+
+    $hostIsWildcard = $false
+    $usesDefaultWildcard = $false
+    $usesCustomWildcard = $false
+
+    if ($host -match "^\*\..+") {
+        $hostIsWildcard = $true
+    }
+
+    if ($hostIsWildcard -and -not $tls.certificate) {
+        $usesDefaultWildcard = $true
+    }
+
+    if ($tls.destinationCACertificate -match "\*\.[\w.-]+") {
+        $usesCustomWildcard = $true
+    }
+
+    if ($hostIsWildcard -or $usesCustomWildcard) {
+        $wildcardRoutes += [PSCustomObject]@{
+            Namespace             = $ns
+            Name                  = $name
+            Host                  = $host
+            UsesDefaultWildcard   = $usesDefaultWildcard
+            UsesCustomWildcard    = $usesCustomWildcard
+        }
+    }
+}
+
+# Output to CSV
+$wildcardRoutes | Export-Csv -Path "wildcard_routes.csv" -NoTypeInformation
+
+Write-Output "Wildcard route check complete. Output saved to 'wildcard_routes.csv'"

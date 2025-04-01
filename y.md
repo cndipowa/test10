@@ -62,3 +62,12 @@ Get-TlsRoutes
 Get-TlsIngresses
 
 Write-Host "`nDone!" -ForegroundColor Cyan
+
+
+
+$clusterUrl = oc whoami --show-server 2>$null
+
+if (-not $clusterUrl) {
+    Write-Error "Not logged into OpenShift or 'oc' command not found"
+    exit 1
+}

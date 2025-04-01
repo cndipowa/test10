@@ -1,68 +1,61 @@
 $ErrorActionPreference = "Stop"
 
-# Helper function to parse cert and check for wildcard entries
-function Test-WildcardCert($pem) {
-    if (-not $pem) { return $false }
+$ingressEntries = @()
+$routeEntries = @()
 
-    try {
-        $pem = $pem -replace '-----BEGIN CERTIFICATE-----', '' `
-                     -replace '-----END CERTIFICATE-----', '' `
-                     -replace '\s', ''
-        $certBytes = [Convert]::FromBase64String($pem)
-        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
-        $cert.Import($certBytes)
+### --- Ingresses ---
+$ingresses = kubectl get ingress --all-namespaces -o json | ConvertFrom-Json
 
-        $subject = $cert.Subject
-        if ($subject -match "CN=\*\..+") {
-            return $true
+foreach ($ing in $ingresses.items) {
+    $ns = $ing.metadata.namespace
+    $name = $ing.metadata.name
+    $rules = $ing.spec.rules
+    $tls = $ing.spec.tls
+
+    $tlsHosts = @{}
+    foreach ($tlsEntry in $tls) {
+        foreach ($host in $tlsEntry.hosts) {
+            $tlsHosts[$host] = $tlsEntry.secretName
         }
+    }
 
-        # Check SANs if available (using OpenSSL if SAN parsing needed — native .NET lacks full SAN parsing)
-        return $false  # SAN parsing omitted here; OpenSSL route would be needed
+    foreach ($rule in $rules) {
+        $host = $rule.host
+        $secret = $tlsHosts[$host]
 
-    } catch {
-        Write-Warning "Failed to parse cert: $_"
-        return $false
+        $ingressEntries += [PSCustomObject]@{
+            Namespace     = $ns
+            IngressName   = $name
+            Host          = $host
+            TLS_Enabled   = if ($secret) { "Yes" } else { "No" }
+            TLS_Secret    = $secret
+        }
     }
 }
 
-# Get all routes from OpenShift
-$routesJson = oc get routes --all-namespaces -o json | ConvertFrom-Json
-$wildcardRoutes = @()
+### --- Routes ---
+$routes = oc get routes --all-namespaces -o json | ConvertFrom-Json
 
-foreach ($route in $routesJson.items) {
+foreach ($route in $routes.items) {
     $ns = $route.metadata.namespace
     $name = $route.metadata.name
     $host = $route.spec.host
     $tls = $route.spec.tls
 
-    $hostIsWildcard = $false
-    $usesDefaultWildcard = $false
-    $usesCustomWildcard = $false
+    $tlsEnabled = if ($tls) { "Yes" } else { "No" }
+    $termination = if ($tls) { $tls.termination } else { "" }
 
-    if ($host -match "^\*\..+") {
-        $hostIsWildcard = $true
-    }
-
-    if ($hostIsWildcard -and -not $tls.certificate) {
-        $usesDefaultWildcard = $true
-    }
-
-    if ($tls.destinationCACertificate) {
-        $usesCustomWildcard = Test-WildcardCert $tls.destinationCACertificate
-    }
-
-    if ($hostIsWildcard -or $usesCustomWildcard) {
-        $wildcardRoutes += [PSCustomObject]@{
-            Namespace             = $ns
-            Name                  = $name
-            Host                  = $host
-            UsesDefaultWildcard   = $usesDefaultWildcard
-            UsesCustomWildcard    = $usesCustomWildcard
-        }
+    $routeEntries += [PSCustomObject]@{
+        Namespace     = $ns
+        RouteName     = $name
+        Host          = $host
+        TLS_Enabled   = $tlsEnabled
+        TLS_Termination = $termination
     }
 }
 
-# Output CSV
-$wildcardRoutes | Export-Csv -Path "wildcard_routes.csv" -NoTypeInformation
-Write-Output "Done. Wildcard routes exported to wildcard_routes.csv"
+# Export to two separate CSVs
+$ingressEntries | Export-Csv -Path "ingresses.csv" -NoTypeInformation
+$routeEntries   | Export-Csv -Path "routes.csv" -NoTypeInformation
+
+Write-Output "Export complete: ingresses.csv and routes.csv created."

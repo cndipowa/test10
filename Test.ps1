@@ -1,61 +1,79 @@
-$ErrorActionPreference = "Stop"
+<#
+.SYNOPSIS
+    Get all OpenShift Routes and Kubernetes Ingresses with TLS configuration
+.DESCRIPTION
+    This script retrieves all Route and Ingress resources that have TLS configured
+    across all namespaces in an OpenShift cluster.
+    The default cert is a wildcard.
+.NOTES
+    Requires: oc (OpenShift CLI) to be installed and authenticated
+#>
 
-$ingressEntries = @()
-$routeEntries = @()
 
-### --- Ingresses ---
-$ingresses = kubectl get ingress --all-namespaces -o json | ConvertFrom-Json
+$global:clusterUrl = oc whoami --show-server 2>$null
 
-foreach ($ing in $ingresses.items) {
-    $ns = $ing.metadata.namespace
-    $name = $ing.metadata.name
-    $rules = $ing.spec.rules
-    $tls = $ing.spec.tls
-
-    $tlsHosts = @{}
-    foreach ($tlsEntry in $tls) {
-        foreach ($host in $tlsEntry.hosts) {
-            $tlsHosts[$host] = $tlsEntry.secretName
-        }
-    }
-
-    foreach ($rule in $rules) {
-        $host = $rule.host
-        $secret = $tlsHosts[$host]
-
-        $ingressEntries += [PSCustomObject]@{
-            Namespace     = $ns
-            IngressName   = $name
-            Host          = $host
-            TLS_Enabled   = if ($secret) { "Yes" } else { "No" }
-            TLS_Secret    = $secret
-        }
-    }
+if (-not $clusterUrl) {
+    Write-Error "Not logged into OpenShift or 'oc' command not found"
+    exit 1
 }
 
-### --- Routes ---
-$routes = oc get routes --all-namespaces -o json | ConvertFrom-Json
 
-foreach ($route in $routes.items) {
-    $ns = $route.metadata.namespace
-    $name = $route.metadata.name
-    $host = $route.spec.host
-    $tls = $route.spec.tls
-
-    $tlsEnabled = if ($tls) { "Yes" } else { "No" }
-    $termination = if ($tls) { $tls.termination } else { "" }
-
-    $routeEntries += [PSCustomObject]@{
-        Namespace     = $ns
-        RouteName     = $name
-        Host          = $host
-        TLS_Enabled   = $tlsEnabled
-        TLS_Termination = $termination
+# Function to get TLS Routes
+function Get-TlsRoutes {
+    Write-Host "`nTLS Routes:" -ForegroundColor Green
+    [array]$routes = oc get routes --all-namespaces -o json | ConvertFrom-Json
+    
+    [array]$tlsRoutes = $routes.items | Where-Object { $_.spec.tls -ne $null }
+    
+    if ($tlsRoutes.Count -eq 0) {
+        Write-Host "No TLS Routes found" -ForegroundColor Yellow
+        return
     }
+
+    $tlsRoutes | ForEach-Object {
+        [PSCustomObject]@{
+            Namespace = $_.metadata.namespace
+            Name = $_.metadata.name
+            Host = $_.spec.host
+            Termination = $_.spec.tls.termination
+            Certificate = if ($_.spec.tls.certificate) { "Custom" } else { "Default" }
+        }
+    } | Format-Table -AutoSize
+
+    Write-Host "Total TLS Routes count: " $tlsRoutes.Count -ForegroundColor Cyan
 }
 
-# Export to two separate CSVs
-$ingressEntries | Export-Csv -Path "ingresses.csv" -NoTypeInformation
-$routeEntries   | Export-Csv -Path "routes.csv" -NoTypeInformation
+# Function to get TLS Ingresses
+function Get-TlsIngresses {
+    Write-Host "`nTLS Ingresses:" -ForegroundColor Green
+    [array]$ingresses = oc get ingress --all-namespaces -o json | ConvertFrom-Json
+    
+    [array]$tlsIngresses = $ingresses.items | Where-Object { $_.spec.tls -ne $null }
+    
+    if ($tlsIngresses.Count -eq 0) {
+        Write-Host "No TLS Ingresses found" -ForegroundColor Yellow
+        return
+    }
 
-Write-Output "Export complete: ingresses.csv and routes.csv created."
+    $tlsIngresses | ForEach-Object {
+        [PSCustomObject]@{
+            Namespace = $_.metadata.namespace
+            Name = $_.metadata.name
+            Hosts = ($_.spec.rules.host -join ", ")
+            TLS_Hosts = ($_.spec.tls.hosts -join ", ")
+            Secret = $_.spec.tls.secretName
+        }
+    } | Format-Table -AutoSize
+
+    Write-Host "Total TLS Ingress count: " $tlsIngresses.Count -ForegroundColor Cyan
+}
+
+# Main execution
+
+Write-Host "`nENVIRONMENT --> " $clusterUrl -ForegroundColor Cyan
+Write-Host "`nCollecting TLS Routes and Ingresses..." -ForegroundColor Cyan
+
+Get-TlsRoutes
+Get-TlsIngresses
+
+Write-Host "`nDone! ENVIRONMENT --> " $clusterUrl  -ForegroundColor green

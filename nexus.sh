@@ -1,3 +1,45 @@
+# Configurations
+$NexusUrl = "https://nexus.example.com"
+$Username = "admin"
+$Password = "yourpassword"  # Or use API Token
+$AuthHeader = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$Username:$Password"))
+
+# Get all users
+$users = Invoke-RestMethod -Uri "$NexusUrl/service/rest/v1/security/users" `
+                           -Headers @{Authorization = $AuthHeader} `
+                           -Method Get
+
+# Get all roles
+$roles = Invoke-RestMethod -Uri "$NexusUrl/service/rest/v1/security/roles" `
+                           -Headers @{Authorization = $AuthHeader} `
+                           -Method Get
+
+# Build a lookup of roleId -> role
+$roleMap = @{}
+foreach ($role in $roles) {
+    $roleMap[$role.roleId] = $role
+}
+
+# Process users and output their roles and privileges
+foreach ($user in $users) {
+    Write-Output "`n=== User: $($user.userId) ==="
+    Write-Output "Roles:"
+    
+    foreach ($roleId in $user.roles) {
+        if ($roleMap.ContainsKey($roleId)) {
+            $role = $roleMap[$roleId]
+            Write-Output "  - $($role.name) (`$roleId`):"
+
+            foreach ($priv in $role.privileges) {
+                Write-Output "     • Privilege: $priv"
+            }
+        } else {
+            Write-Output "  - Unknown Role: $roleId"
+        }
+    }
+}
+
+#############################
 <#
 .SYNOPSIS
     Retrieves all users, their roles, and associated privileges from Nexus Repository Manager.

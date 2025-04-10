@@ -3,56 +3,87 @@ $users = Get-Content "users.json" | ConvertFrom-Json
 $roles = Get-Content "roles.json" | ConvertFrom-Json
 $privileges = Get-Content "privileges.json" | ConvertFrom-Json
 
-# Convert role list to a hashtable for fast lookup
+# Convert to hash maps for fast lookup
 $roleMap = @{}
 foreach ($role in $roles) {
     $roleMap[$role.id] = $role
 }
 
-# Convert privileges list to a hashtable for fast lookup
 $privMap = @{}
 foreach ($priv in $privileges) {
     $privMap[$priv.name] = $priv
 }
 
-# Flatten users and their associated roles and privileges
-$results = foreach ($user in $users) {
-    $userRoles = $user.roles + $user.externalRoles
+# Recursive role traversal to collect all privileges for a role
+function Get-AllPrivilegesFromRole {
+    param (
+        [string]$roleId,
+        [hashtable]$visitedRoles
+    )
 
-    foreach ($roleId in $userRoles) {
-        if ($roleMap.ContainsKey($roleId)) {
-            $role = $roleMap[$roleId]
-            $privs = $role.privileges
+    $results = @()
 
-            if ($privs.Count -eq 0) {
-                # No privileges assigned
-                [PSCustomObject]@{
-                    UserName   = $user.emailAddress
+    if ($visitedRoles.ContainsKey($roleId)) {
+        return $results  # Prevent circular recursion
+    }
+
+    $visitedRoles[$roleId] = $true
+
+    if ($roleMap.ContainsKey($roleId)) {
+        $role = $roleMap[$roleId]
+
+        # Direct privileges
+        foreach ($privId in $role.privileges) {
+            if ($privMap.ContainsKey($privId)) {
+                $results += [PSCustomObject]@{
                     Role       = $roleId
-                    Privilege  = ""
-                    Actions    = ""
-                    Repository = ""
-                }
-            } else {
-                foreach ($privId in $privs) {
-                    $priv = $privMap[$privId]
-                    [PSCustomObject]@{
-                        UserName   = $user.emailAddress
-                        Role       = $roleId
-                        Privilege  = $priv.name
-                        Actions    = ($priv.actions -join ", ")
-                        Repository = $priv.repository
-                    }
+                    Privilege  = $privId
+                    Actions    = ($privMap[$privId].actions -join ", ")
+                    Repository = $privMap[$privId].repository
                 }
             }
-        } else {
-            # Role not found in role map
+        }
+
+        # Recursively get privileges from nested roles
+        foreach ($nestedRoleId in $role.roles) {
+            $results += Get-AllPrivilegesFromRole -roleId $nestedRoleId -visitedRoles $visitedRoles
+        }
+    } else {
+        $results += [PSCustomObject]@{
+            Role       = $roleId
+            Privilege  = "Role not found"
+            Actions    = ""
+            Repository = ""
+        }
+    }
+
+    return $results
+}
+
+# Gather all users and their resolved privileges
+$results = foreach ($user in $users) {
+    $userRoles = $user.roles + $user.externalRoles
+    foreach ($roleId in $userRoles) {
+        $visited = @{}
+        $resolvedPrivs = Get-AllPrivilegesFromRole -roleId $roleId -visitedRoles $visited
+
+        if ($resolvedPrivs.Count -eq 0) {
             [PSCustomObject]@{
                 UserName   = $user.emailAddress
                 Role       = $roleId
-                Privilege  = "Role not found"
+                Privilege  = ""
                 Actions    = ""
                 Repository = ""
+            }
+        } else {
+            foreach ($priv in $resolvedPrivs) {
+                [PSCustomObject]@{
+                    UserName   = $user.emailAddress
+                    Role       = $priv.Role
+                    Privilege  = $priv.Privilege
+                    Actions    = $priv.Actions
+                    Repository = $priv.Repository
+                }
             }
         }
     }
@@ -60,5 +91,4 @@ $results = foreach ($user in $users) {
 
 # Export to CSV
 $results | Export-Csv -Path "nexus_user_roles_privileges.csv" -NoTypeInformation
-
-Write-Host "Exported to nexus_user_roles_privileges.csv"
+Write-Host "✅ Exported to nexus_user_roles_privileges.csv"

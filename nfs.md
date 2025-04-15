@@ -1,138 +1,100 @@
-Steps to Save the Guide:
-For Markdown (.md):
 
-Copy the entire text below.
+# NFS Troubleshooting Guide for OpenShift with NFS-Backed Pods
 
-Paste into a text editor (VS Code, Notepad++, etc.).
+## Overview
+This guide outlines steps to troubleshoot issues when OpenShift pods are using NFS volumes provided by NFS servers running on VMs.
 
-Save as nfs_openshift_troubleshooting.md.
+---
 
-For PDF:
+## Part 1: Checks on NFS Servers (VMs)
 
-Paste the text into a Word/Google Doc.
-
-Use "Save as PDF" from the file menu.
-
-Full NFS Troubleshooting Guide for OpenShift
-markdown
-Copy
-# NFS Troubleshooting Guide for OpenShift
-
-## **1. NFS Server Checks**
-### **1.1 Verify NFS Service Status**
+### 1. Verify NFS Server is Running
 ```bash
-systemctl status nfs-server  # Check if NFS service is running
-systemctl status rpcbind     # Verify RPC bind service (required for NFS)
-✅ Expected: Both services should be active (running).
+systemctl status nfs-server
+```
+- **Expected**: Active (running)
 
-1.2 Check NFS Exports
-bash
-Copy
-exportfs -v                  # List all exported directories
-cat /etc/exports             # Verify export configurations
-✅ Expected:
+### 2. Check NFS Export Configuration
+```bash
+cat /etc/exports
+```
+- **Expected**: Directories are exported with correct access permissions and IP ranges.
 
-Correct export path (/path/to/share) with proper permissions (rw,sync,no_root_squash).
+### 3. Check Exported File Systems
+```bash
+exportfs -v
+```
+- **Expected**: Shows exported directories with client access settings.
 
-Correct client IP/network allowed.
+### 4. Check NFS Port Bindings
+```bash
+rpcinfo -p | grep nfs
+```
+- **Expected**: NFS and mountd ports are visible.
 
-1.3 Test NFS Mount Locally
-bash
-Copy
-mkdir /mnt/test
-mount -t nfs <NFS_SERVER_IP>:/export/path /mnt/test  # Test mount
-df -h | grep nfs             # Verify mount
-umount /mnt/test             # Cleanup
-✅ Expected: Mount succeeds without errors.
+### 5. Firewall and SELinux
+```bash
+sudo firewall-cmd --list-all
+getenforce
+```
+- **Expected**: NFS ports open (2049), SELinux in `permissive` or policies configured correctly.
 
-1.4 Check Firewall Rules
-bash
-Copy
-firewall-cmd --list-all | grep nfs  # Check NFS ports (2049, 111, 20048)
-✅ Expected: Ports 2049 (nfs), 111 (rpcbind), and 20048 (mountd) are open.
+### 6. Inspect NFS Server Logs
+```bash
+journalctl -u nfs-server
+tail -f /var/log/messages
+```
 
-1.5 Review NFS Server Logs
-bash
-Copy
-journalctl -u nfs-server -f   # Check NFS service logs
-tail -f /var/log/messages    # General system logs for NFS errors
-🔍 Look for:
+---
 
-Permission denials (access denied).
+## Part 2: Checks on OpenShift
 
-Connection timeouts.
+### 1. Check Pod Events for Errors
+```bash
+oc get events -n <namespace>
+oc describe pod <pod-name> -n <namespace>
+```
+- **Expected**: No mount errors or timeouts.
 
-2. OpenShift (OCP) Checks
-2.1 Verify PersistentVolume (PV) & PersistentVolumeClaim (PVC)
-bash
-Copy
-oc get pv                   # Check PV status
-oc get pvc -n <namespace>   # Check PVC binding
-oc describe pv <pv-name>    # Inspect PV details
-✅ Expected:
+### 2. Check PVC and PV Binding
+```bash
+oc get pvc -n <namespace>
+oc describe pvc <pvc-name> -n <namespace>
+oc get pv
+```
+- **Expected**: PVCs are `Bound` to PVs.
 
-PV Status = Bound.
+### 3. Validate PV NFS Configuration
+```bash
+oc get pv <pv-name> -o yaml
+```
+- **Expected**: Correct NFS server and path in the spec.
 
-PVC shows Bound with correct capacity.
+### 4. Test Mount from Pod
+Run a debug pod or use an existing pod with `nfs-utils`:
+```bash
+oc debug pod/<pod-name> -n <namespace> --image=registry.access.redhat.com/ubi8/ubi
+yum install -y nfs-utils
+mount -t nfs <nfs-server-ip>:/export/path /mnt
+```
+- **Expected**: Mount succeeds, no errors.
 
-2.2 Check Pod Mount Status
-bash
-Copy
-oc get pods -n <namespace> -o wide  # Verify pod is running
-oc describe pod <pod-name> | grep -i mount  # Check mount errors
-🔍 Look for:
+### 5. Check OpenShift Node Logs (Where Pod is Scheduled)
+```bash
+oc adm node-logs <node-name> --path=journal
+journalctl | grep nfs
+```
 
-MountVolume.SetUp failed errors.
+### 6. Confirm Node Can Reach NFS Server
+```bash
+ping <nfs-server-ip>
+telnet <nfs-server-ip> 2049
+```
 
-Timeouts connecting to NFS.
+---
 
-2.3 Test NFS Mount Inside a Debug Pod
-bash
-Copy
-oc run nfs-test --image=busybox --rm -it -- sh
-mount -t nfs <NFS_SERVER>:/export/path /mnt
-ls /mnt                      # Check if files are accessible
-✅ Expected: Files are readable/writable.
-
-2.4 Check OpenShift Logs
-bash
-Copy
-oc logs <pod-name> -n <namespace>  # Application logs
-oc get events -n <namespace>       # Cluster events
-🔍 Look for:
-
-FailedMount events.
-
-Permission issues (access denied).
-
-2.5 Verify Node NFS Client Configuration
-bash
-Copy
-oc debug node/<node-name>          # Access node shell
-chroot /host
-rpcinfo -p <NFS_SERVER_IP>         # Verify RPC services
-mount | grep nfs                   # Check existing NFS mounts
-✅ Expected:
-
-rpcinfo shows nfs, mountd, nlockmgr.
-
-No stale mounts.
-
-3. Common Fixes
-NFS Server:
-
-Restart NFS: systemctl restart nfs-server.
-
-Update /etc/exports and run exportfs -ra.
-
-Adjust firewall: firewall-cmd --add-service=nfs --permanent.
-
-OpenShift:
-
-Recreate PV/PVC if stuck.
-
-Ensure no_root_squash is set if pods need root access.
-
-Check SELinux (setenforce 0 to test).
-
+## Notes
+- Always ensure time synchronization between OpenShift nodes and NFS servers.
+- If using SELinux and FPolicy, label volumes correctly with `chcon` or `semanage fcontext`.
+- If persistent issues, consider inspecting `kubelet` logs on the nodes.
 

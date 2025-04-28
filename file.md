@@ -1,4 +1,26 @@
 
+# 1. Backup
+oc get secret pull-secret -n openshift-config -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d > current-pull-secret.json
+
+# 2. Edit file
+vim current-pull-secret.json
+
+# 3. Update secret
+oc set data secret/pull-secret -n openshift-config --from-file=.dockerconfigjson=current-pull-secret.json
+
+# 4. Validate
+oc get secret pull-secret -n openshift-config -o json | jq '.data | keys'
+
+# A test
+echo "<password-or-token>" | docker login nexus.example.com -u "<username>" --password-stdin
+
+# Restart machine-config-pools (Optional but Recommended)
+If you are pulling from this registry during node provisioning, you might want to trigger a rollout so the nodes pick up the new pull secret:
+oc delete pod -n openshift-machine-config-operator -l k8s-app=machine-config-controller
+oc wait --for=condition=Updated mcp --all --timeout=10m
+
+Usually, the nodes will re-pickup changes automatically, but a manual restart ensures no stale caches.
+
 # 🧩 Wildcard Host Handling in Istio, Kubernetes, and OpenShift
 
 ## 🔄 Equivalents

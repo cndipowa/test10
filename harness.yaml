@@ -1,0 +1,108 @@
+
+# 1. Domain
+---
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: finance
+  description: Finance domain including billing, payments, and accounting
+spec:
+  owner: group:finance-leads
+
+# 2. System
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: billing-system
+  description: Handles billing and invoicing for customers
+spec:
+  owner: group:billing-team
+  domain: finance
+
+# 3. Component (Service)
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: billing-service
+  description: Service responsible for billing operations
+spec:
+  type: service
+  lifecycle: production
+  owner: group:billing-team
+  system: billing-system
+  providesApis:
+    - billing-api
+  dependsOn:
+    - resource:db/billing-db
+
+# 4. API
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: billing-api
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:billing-team
+  definition: ./openapi/billing-api.yaml
+
+# 5. Resource
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: billing-db
+spec:
+  type: database
+  owner: group:billing-team
+  system: billing-system
+
+# 6. Group (Team)
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: billing-team
+spec:
+  type: team
+  members:
+    - user:alice
+    - user:bob
+
+# 7. Group (Domain Owner)
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: finance-leads
+spec:
+  type: team
+  members:
+    - user:carol
+
+# 8. User
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: alice
+spec:
+  profile:
+    displayName: Alice Smith
+    email: alice@example.com
+  memberOf:
+    - billing-team
+
+# 9. Location
+---
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: billing-location
+spec:
+  type: url
+  targets:
+    - https://git.example.com/billing/catalog-info.yaml

@@ -146,3 +146,124 @@ Grafana Tempo stores trace data in a cost-effective, scalable way.
 * Add log correlation
 * Add metrics in same pipeline
 * Extend across multiple clusters
+
+  ##############################################
+
+  # Distributed Tracing in a Service Mesh with OpenTelemetry, Tempo, and Grafana
+
+## 1. Introduction to Distributed Tracing
+
+* **Problem**: Difficulty observing request flows across microservices.
+* **Solution**: Distributed tracing enables visibility, diagnosis, and performance monitoring.
+* **OpenTelemetry (OTEL)** is a vendor-neutral specification for collecting telemetry data.
+
+## 2. Why Use Service Mesh + OTEL
+
+* **Service Mesh (e.g., Istio)** manages service-to-service communication.
+* OTEL enhances observability by capturing:
+
+  * Infrastructure-level traces (from mesh proxies)
+  * Application-level traces (via SDKs or agents)
+
+## 3. High-Level Architecture
+
+```
+[Java App] --> [OTEL Agent (Java)] --> [OTEL Collector] --> [Tempo]
+                                    \                    \
+                                     \--> [Metrics]     \--> [Grafana UI]
+```
+
+## 4. Component Details
+
+### OTEL Agent (Java)
+
+* Injected via JVM arg: `-javaagent:/otel-agent/opentelemetry-javaagent.jar`
+* Captures HTTP, DB, and internal method traces.
+* Configurable via environment variables (OTEL\_EXPORTER\_OTLP\_ENDPOINT, etc).
+
+### OTEL Collector
+
+* **Receives**, **processes**, and **exports** telemetry.
+* Example pipeline:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp/tempo]
+```
+
+### Tempo
+
+* Trace storage backend by Grafana Labs.
+* No need for indexing (simplifies ops).
+* Stores to object storage (e.g., S3, GCS, MinIO).
+
+### Grafana
+
+* Queries and visualizes traces from Tempo.
+* Rich UI with waterfall views, span details.
+* Can correlate with logs and metrics.
+
+## 5. Kubernetes Deployment Model
+
+```
+[ K8s Cluster ]
+   ├── Java App Pod
+   │    └── OTEL Agent (Java)
+   ├── Istio Sidecar
+   ├── OTEL Collector Deployment
+   ├── Tempo Deployment or StatefulSet
+   └── Grafana Deployment
+```
+
+* Istio handles network traces.
+* OTEL Agent enriches with application-level spans.
+
+## 6. Demo Steps
+
+1. Deploy all components in a K8s cluster.
+2. Send traffic to the Java app.
+3. OTEL Agent emits spans to Collector.
+4. Collector exports traces to Tempo.
+5. Open Grafana, visualize trace flows.
+
+## 7. Benefits
+
+* Unified observability with OpenTelemetry.
+* Seamless integration of app and infra tracing.
+* Tempo is scalable and cost-effective.
+* Grafana provides deep insights and dashboards.
+
+## 8. Best Practices & Challenges
+
+* Set consistent `service.name` in all emitters.
+* Use tail-based sampling in OTEL Collector if needed.
+* Secure endpoints and export paths (TLS, auth).
+* Monitor OTEL Collector performance.
+
+## 9. Future Enhancements
+
+* Add **logs correlation** using Grafana Loki.
+* Link **traces with metrics** using exemplars.
+* Explore **Service Graphs** in Grafana.
+
+## 10. References
+
+* [https://opentelemetry.io/](https://opentelemetry.io/)
+* [https://grafana.com/oss/tempo/](https://grafana.com/oss/tempo/)
+* [https://github.com/open-telemetry/opentelemetry-java-instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
+* [https://istio.io/latest/docs/tasks/observability/](https://istio.io/latest/docs/tasks/observability/)
+

@@ -20,3 +20,49 @@ spec:
     - david.carreiro
     - maurice.heimlich
     - che.ndipowa
+---
+import csv
+import yaml
+import re
+
+def normalize_name(name):
+    # Converts "Last, First (X)" into "first.last"
+    match = re.match(r"(\w+),\s+(\w+)", name)
+    if match:
+        return f"{match.group(2).lower()}.{match.group(1).lower()}"
+    return name.strip().lower().replace(" ", ".")
+
+def parse_list_field(field):
+    # Converts stringified list into Python list
+    try:
+        return eval(field)
+    except:
+        return []
+
+with open('groups.csv', newline='', encoding='utf-8') as csvfile:
+    reader = csv.DictReader(csvfile)
+    for row in reader:
+        group = {
+            "apiVersion": "backstage.io/v1alpha1",
+            "kind": "Group",
+            "metadata": {
+                "name": row["Name"],
+                "description": row["Description"]
+            },
+            "spec": {
+                "type": parse_list_field(row["GroupType"])[0] if row["GroupType"] else "team",
+                "profile": {
+                    "displayName": row["Short Name"] or row["Name"],
+                    "picture": row["picture"]
+                },
+                "children": [],
+                "members": [normalize_name(m) for m in row["Members"].split(";") if m.strip()],
+                "tags": parse_list_field(row["tags"]) if row["tags"] else [],
+                "parent": None  # You can customize this if needed
+            }
+        }
+
+        with open("groups.yaml", "w", encoding="utf-8") as yamlfile:
+            yaml.dump(group, yamlfile, sort_keys=False)
+
+        print("✅ groups.yaml generated.")

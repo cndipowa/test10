@@ -1,0 +1,22 @@
+"Name","Description","GroupType","Short Name","Team DL Email","Members","Lead Contacts","tags","picture"
+"IDP-Team","The IDP Team members","[""business-unit""]","idp-team",,"Heimlich, Maurice (ES);Buzo, Anderson (CORP);Ndipowa, Che (ES);Greene, Lawren (CORP)","Heimlich, Maurice (ES)","[""platform"",""adp"",""idp""]","https://example.com/groups/bu-team.jpeg"
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: IDP-Team
+  description: The IDP Team members
+spec:
+  type: business-unit
+  profile:
+    displayName: IDP Team
+    picture: https://example.com/groups/bu-team.jpeg
+  children: []
+  members:
+    - chris.simone
+    - anderson.buzo
+    - james.ha
+    - david.carreiro
+    - maurice.heimlich
+    - che.ndipowa

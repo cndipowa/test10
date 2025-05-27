@@ -1,4 +1,6 @@
 # Use an official Python runtime as a parent image
+# docker run --privileged --name dind-test -d docker:dind
+
 FROM python:3.9-slim
 
 # Set environment variables

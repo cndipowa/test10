@@ -1,0 +1,167 @@
+# Use an official Python runtime as a parent image
+FROM python:3.9-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Set work directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE 5000
+
+# Command to run the application
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "app:app"]
+
+####### .gitignore
+
+.git
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.env
+venv
+
+####### Test
+# Build the image
+docker build -t healthcheck-probe:latest .
+
+# Run the container locally to test
+docker run -d -p 5000:5000 --name healthcheck-probe healthcheck-probe:latest
+
+# Check logs
+docker logs -f healthcheck-probe
+
+
+#########
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthcheck-probe
+  labels:
+    app: healthcheck-probe
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: healthcheck-probe
+  template:
+    metadata:
+      labels:
+        app: healthcheck-probe
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: healthcheck-probe
+        image: healthcheck-probe:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/endpoints.yaml
+          subPath: endpoints.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: healthcheck-probe-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthcheck-probe
+  labels:
+    app: healthcheck-probe
+spec:
+  selector:
+    app: healthcheck-probe
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: healthcheck-probe-config
+data:
+  endpoints.yaml: |
+    - name: example-service
+      url: example.com
+      port: 80
+      path: /health
+      expected_text: "OK"
+      docs_link: "https://example.com/docs"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: healthcheck-probe-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: healthcheck-probe
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: healthcheck-probe-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: healthcheck.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: healthcheck-probe
+            port:
+              number: 80
+---
+# Tag and push to a registry (example for Docker Hub)
+docker tag healthcheck-probe:latest yourusername/healthcheck-probe:latest
+docker push yourusername/healthcheck-probe:latest
+
+# Update deployment.yaml to use your registry image
+# image: yourusername/healthcheck-probe:latest

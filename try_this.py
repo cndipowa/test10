@@ -1,94 +1,30 @@
 import requests
+import os
 
-url = "https://app.harness.io/v1/entities"
-headers = {
-    "Content-Type": "application/json",
-    "Harness-Account": "string",
-    "x-api-key": "YOUR_API_KEY_HERE"
-}
-params = {
-    "orgIdentifier": "string",
-    "projectIdentifier": "string",
-    "convert": "false",
-    "dry_run": "false"
-}
-payload = {
-    "yaml": """apiVersion: harness.io/v1
-kind: component
-type: Service
-identifier: my-sample-service
-name: my-sample-service
-owner: sample-owner
-spec:
-  lifecycle: experimental
-  ownedBy:
-    - group/sample-group
-metadata:
-  description: My Sample service.
-  annotations:
-    backstage.io/source-location: url:https://github.com/sample/sample/tree/main/harness/sample/
-    backstage.io/techdocs-ref: dir:.
-  links:
-    - title: Website
-      url: http://my-sample-website.com
-  tags:
-    - my-sample
-"""
-}
-
-response = requests.post(
-    url,
-    headers=headers,
-    params=params,
-    json=payload
-)
-
-# Print the response details
-print(f"Status Code: {response.status_code}")
-print("Headers:")
-print(response.headers)
-print("Response Body:")
-print(response.text)
-
-import requests
-
+# Harness API setup
 url = "https://app.harness.io/v1/entities"
 params = {
-    "orgIdentifier": "string",
-    "projectIdentifier": "string",
+    "orgIdentifier": "default",
+    "projectIdentifier": "ADP_IDP_POV",
     "convert": "false",
     "dry_run": "false"
 }
 headers = {
     "Content-Type": "application/json",
-    "Harness-Account": "string",
-    "x-api-key": "YOUR_API_KEY_HERE"
-}
-payload = {
-    "yaml": """apiVersion: harness.io/v1
-kind: component
-type: Service
-identifier: my-sample-service
-name: my-sample-service
-owner: sample-owner
-spec:
-  lifecycle: experimental
-  ownedBy:
-    - group/sample-group
-metadata:
-  description: My Sample service.
-  annotations:
-    backstage.io/source-location: url:https://github.com/sample/sample/tree/main/harness/sample/
-    backstage.io/techdocs-ref: dir:.
-  links:
-    - title: Website
-      url: http://my-sample-website.com
-  tags:
-    - my-sample"""
+    "Harness-Account": "JkY2eWMoTyop88bDTeyrqg",
+    "x-api-key": "pat_JkY2eWMoTyop88bDTeyrqg.6d3807dfd615c41f5f0ad5e7.ji88c0Aqj2so4kppzqzK"
 }
 
-response = requests.post(url, headers=headers, params=params, json=payload)
+# Directory containing YAML files
+yaml_dir = "./yamls"
 
-print("Status Code:", response.status_code)
-print("Response Body:", response.text)
+# Loop through all YAML files and POST them
+for filename in os.listdir(yaml_dir):
+    if filename.endswith(".yaml") or filename.endswith(".yml"):
+        with open(os.path.join(yaml_dir, filename), "r") as f:
+            yaml_content = f.read()
+            payload = {"yaml": yaml_content}
+            response = requests.post(url, headers=headers, params=params, json=payload, verify=False)
 
+            print(f"[{filename}] Status: {response.status_code}")
+            print(f"[{filename}] Response: {response.text}")

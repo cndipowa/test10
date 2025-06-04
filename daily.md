@@ -95,3 +95,92 @@ Prometheus/Alertmanager for monitoring
 Custom dashboards and health checks via Grafana
 
 CI jobs to validate service endpoints (e.g., GitLab CI or Jenkins)
+
+
+
+
+✅ Additions to Daily Manual System Checks (Based on Analyst Gaps)
+🔹 1. Automated Testing Validation
+ Confirm that test-run triggers (e.g., BPA/BOM Morning Validation) are executing and reporting accurately.
+
+ Validate synthetic monitoring for critical workflows (e.g., login, read/write checks).
+
+🔹 2. CBER Connect Services
+✅ Redirex Check
+ Ensure Redirex is functional and tests redirecting services.
+
+ Confirm errors don’t persist silently due to missing tests.
+
+🔹 3. CBER Connect Supporting Services
+✅ Fluentd Functionality
+ Validate Fluentd log forwarding to Elasticsearch.
+
+ Check for broken log pipelines (e.g., log volume drops).
+
+✅ elr-logging Functionality
+ Confirm Elasticsearch indices exist and ingest recent logs.
+
+ Validate log content freshness (timestamps within past 15 min).
+
+✅ Prisma Cloud
+ Ensure Prisma Cloud is reporting alerts.
+
+ Spot-check console access and recent detections.
+
+✅ Camunda
+ Confirm Camunda UI is accessible and jobs are executing.
+
+ Validate job retries or failures aren’t silently occurring.
+
+🔹 4. DevSecOps
+✅ FD SLSV13381 Server
+ Confirm this internal server is responsive (ping, web, API).
+
+✅ Nexus
+ Validate Nexus responds to HTTP(S) health checks (e.g., /service/rest/v1/status).
+
+✅ GitLab
+ Run synthetic API or UI checks for project access and login.
+
+✅ Fluentd on DevSecOps Node
+ Confirm logs are generated and reaching destination.
+
+ Validate node-exporter metrics are available.
+
+🔹 5. Backup Validation
+✅ Aggregate Results Across Systems
+ Confirm backup logs are aggregated across GitLab, Nexus, Prisma, etc.
+
+ Check timestamps of last successful backup.
+
+✅ Backup Log Output
+ Review CTF log output for backup status.
+
+ Spot-check presence of SUCCESS flags or error traces.
+
+✅ Alert Queries
+ Ensure alerts exist for failed or missing backup logs.
+
+ If backup did not run, is there a failure alert?
+
+🔹 6. Unmanaged Services (Risk Gap)
+While these may not be under full IT control, visibility should be improved:
+
+ CBER Connect DB (ed13-scan.fda.gov): Spot-check DB connectivity (if possible).
+
+ SailPoint: Confirm SSO login functionality from user reports or synthetic test.
+
+ Ping SSO: Monitor availability of identity endpoints.
+
+ F5: Review external monitoring (e.g., synthetic uptime test for F5 VIPs).
+
+🚀 Next Step Recommendation
+You may want to incorporate these as:
+
+❗ Tagged “Gap Checks” in your daily checklist.
+
+🔁 Synthetic probes using tools like curl, prometheus-blackbox-exporter, or lightweight scripts.
+
+🧾 Jira integration for failed checks auto-ticketing (based on tasks like CSOMOPS-4773, etc.).
+
+Let me know if you'd like a combined updated daily checklist in markdown, PDF, or as a Confluence table export.

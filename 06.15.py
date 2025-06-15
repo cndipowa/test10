@@ -43,3 +43,35 @@ response = requests.put(url, headers=headers, params=params, json=payload)
 print(f"Status Code: {response.status_code}")
 print("Response Body:")
 print(response.text)
+---
+import requests
+
+url = "https://app.harness.io/v1/entities"
+
+params = {
+    "page": "0",
+    "limit": "10",
+    "sort": "string",
+    "search_term": "string",
+    "scopes": "string",
+    "entity_refs": "string",
+    "owned_by_me": "true",
+    "favorites": "true",
+    "kind": "string",
+    "type": "string",
+    "owner": "string",
+    "lifecycle": "string",
+    "tags": "string"
+}
+
+headers = {
+    "Harness-Account": "string",
+    "x-api-key": "YOUR_API_KEY_HERE"
+}
+
+response = requests.get(url, headers=headers, params=params)
+
+print(f"Status Code: {response.status_code}")
+print("Response Body:")
+print(response.text)
+

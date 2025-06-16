@@ -105,4 +105,34 @@ for item in items:
 for obj in parsed_yaml_objects:
     print(obj)
     print("-" * 50)
+#########
+import requests
 
+# Define variables
+scope = "YOUR_scope_PARAMETER"
+kind = "YOUR_kind_PARAMETER"
+identifier = "YOUR_identifier_PARAMETER"
+api_key = "YOUR_API_KEY_HERE"
+
+# Construct URL
+url = f"https://app.harness.io/v1/entities/{scope}/{kind}/{identifier}"
+
+# Define query parameters
+params = {
+    "orgIdentifier": "string",
+    "projectIdentifier": "string"
+}
+
+# Define headers
+headers = {
+    "Harness-Account": "string",
+    "x-api-key": api_key
+}
+
+# Send DELETE request
+response = requests.delete(url, headers=headers, params=params)
+
+# Print response
+print(f"Status Code: {response.status_code}")
+print("Response Body:")
+print(response.text)
